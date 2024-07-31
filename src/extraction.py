@@ -8,7 +8,11 @@ from revenue import compute_arb_revenue
 
 
 def run_arb_profit_simulation(
-    n_iter: int, rollup_A: Rollup, rollup_B: Rollup
+    n_iter: int,
+    rollup_A: Rollup,
+    rollup_B: Rollup,
+    pool_1: Pool,
+    pool_2: Pool,
 ) -> pd.DataFrame:
     # Generate failure outcomes
     failure_outcomes_A = failure.generate_bernoulli_failure_outcomes(
@@ -27,7 +31,10 @@ def run_arb_profit_simulation(
     # Compute profit under each regime - shared and independent sequencing
     arb_sim_df = pd.DataFrame()
     for i in range(n_iter):
-        i_profit_under_shared_seq = compute_arb_profit_under_shared_seq(
+        i_arb_revenue = compute_arb_revenue(
+            pool_1, pool_2, failure_outcomes_A[i], failure_outcomes_B[i]
+        )
+        i_arb_cost_under_shared_seq = cost.compute_arb_cost_under_shared_seq(
             failure_outcomes_A[i],
             failure_outcomes_B[i],
             gas_prices_A[i] * rollup_A.get_gas_units_swap(),  # gas cost if sucess
@@ -35,7 +42,8 @@ def run_arb_profit_simulation(
             gas_prices_A[i] * rollup_A.get_gas_units_fail(),  # gas cost if failure
             gas_prices_B[i] * rollup_B.get_gas_units_fail(),  # gas cost if failure
         )
-        i_profit_under_indep_seq = compute_arb_profit_under_indep_seq(
+
+        i_arb_cost_under_indep_seq = cost.compute_arb_cost_under_indep_seq(
             failure_outcomes_A[i],
             failure_outcomes_B[i],
             gas_prices_A[i] * rollup_A.get_gas_units_swap(),  # gas cost if sucess
@@ -43,9 +51,12 @@ def run_arb_profit_simulation(
             gas_prices_A[i] * rollup_A.get_gas_units_fail(),  # gas cost if failure
             gas_prices_B[i] * rollup_B.get_gas_units_fail(),  # gas cost if failure
         )
+        i_profit_under_shared_seq = i_arb_revenue - i_arb_cost_under_shared_seq
+        i_profit_under_indep_seq = i_arb_revenue - i_arb_cost_under_indep_seq
         iter_df = pd.DataFrame(
             {
                 "iter": [i],
+                "arb_revenue": [i_arb_revenue],
                 "profit_under_shared_seq": [i_profit_under_shared_seq],
                 "profit_under_indep_seq": [i_profit_under_indep_seq],
                 "shared_sequencing_gain": [
@@ -55,48 +66,6 @@ def run_arb_profit_simulation(
         )
         arb_sim_df = pd.concat([arb_sim_df, iter_df], ignore_index=True)
     return arb_sim_df
-
-
-def compute_arb_profit_under_shared_seq(
-    failure_outcome_A: int,
-    failure_outcome_B: int,
-    gas_cost_A_success: float,
-    gas_cost_B_success: float,
-    gas_cost_A_fail: float,
-    gas_cost_B_fail: float,
-) -> float:
-    arb_revenue = compute_arb_revenue(failure_outcome_A, failure_outcome_B)
-    arb_cost = cost.compute_arb_cost_under_shared_seq(
-        failure_outcome_A,
-        failure_outcome_B,
-        gas_cost_A_success,
-        gas_cost_B_success,
-        gas_cost_A_fail,
-        gas_cost_B_fail,
-    )
-    arb_profit = arb_revenue - arb_cost
-    return arb_profit
-
-
-def compute_arb_profit_under_indep_seq(
-    failure_outcome_A: int,
-    failure_outcome_B: int,
-    gas_cost_A_success: float,
-    gas_cost_B_success: float,
-    gas_cost_A_fail: float,
-    gas_cost_B_fail: float,
-) -> float:
-    arb_revenue = compute_arb_revenue(failure_outcome_A, failure_outcome_B)
-    arb_cost = cost.compute_arb_cost_under_indep_seq(
-        failure_outcome_A,
-        failure_outcome_B,
-        gas_cost_A_success,
-        gas_cost_B_success,
-        gas_cost_A_fail,
-        gas_cost_B_fail,
-    )
-    arb_profit = arb_revenue - arb_cost
-    return arb_profit
 
 
 if __name__ == "__main__":
@@ -115,7 +84,10 @@ if __name__ == "__main__":
         gas_units_swap=10.0,
         gas_units_fail=1.0,
     )
+    # Define pool settings -> based on data
+    pool_1 = Pool(reserve_x=1000, reserve_y=1000, fee=0.005)
+    pool_2 = Pool(reserve_x=1050, reserve_y=1000, fee=0.005)
     # Run simulation
     n_iter = 10
-    arb_sim_df = run_arb_profit_simulation(n_iter, rollup_A, rollup_B)
+    arb_sim_df = run_arb_profit_simulation(n_iter, rollup_A, rollup_B, pool_1, pool_2)
     arb_sim_df.to_csv("./data/test_arb_sim_df.csv")

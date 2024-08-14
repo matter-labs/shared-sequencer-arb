@@ -3,6 +3,7 @@ import pandas as pd
 import cost
 import failure
 from rollup import Rollup
+from gas import GasPriceModel
 from pool import Pool
 from revenue import compute_arb_revenue
 
@@ -22,12 +23,8 @@ def run_arb_profit_simulation(
         rollup_B.get_fail_rate(), n_iter
     )
     # Generate gas prices
-    gas_prices_A = cost.generate_normal_gas_prices(
-        rollup_A.get_gas_price_mean(), rollup_A.get_gas_price_std(), n_iter
-    )
-    gas_prices_B = cost.generate_normal_gas_prices(
-        rollup_B.get_gas_price_mean(), rollup_B.get_gas_price_std(), n_iter
-    )
+    gas_prices_A = rollup_A.generate_gas_prices(n_iter)
+    gas_prices_B = rollup_B.generate_gas_prices(n_iter)
     # Compute profit under each regime - shared and independent sequencing
     arb_sim_df = pd.DataFrame()
     for i in range(n_iter):
@@ -70,17 +67,21 @@ def run_arb_profit_simulation(
 
 if __name__ == "__main__":
     # Define rollup settings -> based on data
+    gas_price_model_A = GasPriceModel(
+        model_type="gaussian", gas_price_mean=0.01, gas_price_std=0.0001
+    )
     rollup_A = Rollup(
         fail_rate=0.3,
-        gas_price_mean=0.01,
-        gas_price_std=0.0001,
+        gas_price_model=gas_price_model_A,
         gas_units_swap=10.0,
         gas_units_fail=1.0,
     )
+    gas_price_model_B = GasPriceModel(
+        model_type="gaussian", gas_price_mean=0.01, gas_price_std=0.0001
+    )
     rollup_B = Rollup(
         fail_rate=0.3,
-        gas_price_mean=0.01,
-        gas_price_std=0.0001,
+        gas_price_model=gas_price_model_B,
         gas_units_swap=10.0,
         gas_units_fail=1.0,
     )

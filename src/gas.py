@@ -35,7 +35,7 @@ class GasPriceModel:
             counts = np.array([t[1] for t in self.gas_price_histogram])
             bandwidth = np.diff(vals).mean()
             kde_model = KernelDensity(kernel="gaussian", bandwidth=bandwidth).fit(
-                vals.reshape(-1, 1), sample_weight=counts
+                vals, sample_weight=counts
             )
             gas_prices = kde_model.sample(n_samples)
         return gas_prices
